@@ -85,8 +85,9 @@ POLL_INTERVAL_MINUTES=5              # how often to check the group for triggers
 - **`TRIGGER_RED` / `TRIGGER_GOLD` / `TRIGGER_BLUE` / `TRIGGER_SILVER`** — *optional.* What the group
   says to change turns (case-insensitive, as a standalone message). Defaults are `red up`, `gold up`,
   etc. Customize these if your group uses different words — e.g. `@red`, `RED TEAM`, etc.
-- **`REMINDER_INTERVAL_MINUTES`** — how often reminders fire (in minutes). Must divide evenly into 60
-  (e.g. 15, 20, 30, 60); other values fall back to 60. Defaults to 60.
+- **`REMINDER_INTERVAL_MINUTES`** — how often reminders fire (in minutes). Use a divisor of 60 for
+  sub-hour intervals (e.g. `15`, `30`) or a multiple of 60 for multi-hour intervals (e.g. `120` =
+  every 2 hours, `180` = every 3 hours). Other values fall back to 60. Defaults to 60.
 - **`POLL_INTERVAL_MINUTES`** — how often the bot checks for new trigger words (in minutes). Defaults to 5.
 - Player **names and emojis** (🔴 🟡 🔵 ⚪️) are fixed game constants in `src/store.js` — no need to set them.
 

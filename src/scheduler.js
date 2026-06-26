@@ -9,16 +9,19 @@ import { sendToGroup, sendToHandle } from './sender.js';
 
 /**
  * Build a cron expression for an N-minute interval.
- *   60            -> "0 * * * *"     (top of every hour)
- *   divisor of 60 -> "* / N * * * *"  (e.g. 15 -> every 15 min, on the clock)
- * Anything else falls back to hourly with a warning, since cron's minute field
- * can't express arbitrary intervals cleanly.
+ *   divisor of 60  -> "* / N * * * *"  (e.g. 15 -> every 15 min)
+ *   60             -> "0 * * * *"      (every hour)
+ *   multiple of 60 -> "0 * / H * * *"  (e.g. 120 -> every 2 hours)
+ * Anything else falls back to hourly with a warning.
  */
 export function cronExpressionFor(intervalMinutes) {
   const n = Math.round(intervalMinutes);
-  if (n === 60) return '0 * * * *';
   if (n >= 1 && n < 60 && 60 % n === 0) return `*/${n} * * * *`;
-  logError(`reminderIntervalMinutes=${intervalMinutes} isn't a divisor of 60; falling back to hourly.`);
+  if (n >= 60 && n % 60 === 0) {
+    const h = n / 60;
+    return h === 1 ? '0 * * * *' : `0 */${h} * * *`;
+  }
+  logError(`reminderIntervalMinutes=${intervalMinutes} must be a divisor of 60 (e.g. 15, 30, 60) or a multiple of 60 (e.g. 120, 180); falling back to hourly.`);
   return '0 * * * *';
 }
 
@@ -56,11 +59,13 @@ export function createScheduler(config) {
       return activeColor;
     },
 
-    /** Start (or restart) the reminder job for a color. */
+    /** Start (or restart) the reminder job for a color, firing one reminder immediately. */
     start(color) {
       this.stop();
       activeColor = color;
       const expr = cronExpressionFor(config.reminderIntervalMinutes);
+      // Fire immediately on trigger, then again on the cron schedule from this point.
+      fireReminder(color).catch((err) => logError(`Immediate reminder failed: ${err.message}`));
       task = cron.schedule(expr, () => {
         fireReminder(color).catch((err) => logError(`Reminder tick failed: ${err.message}`));
       });
