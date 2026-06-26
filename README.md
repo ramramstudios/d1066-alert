@@ -208,8 +208,10 @@ Reload the agent (`unload` then `load`) to pick up a hand-edited turn.
 
 ## Trigger reference
 
-The defaults below are case-insensitive and detected anywhere in a group-chat message. To use custom
-words (e.g. `@red`, `Red's turn`), set `TRIGGER_RED`, `TRIGGER_GOLD`, etc. in `.env`.
+**The trigger phrase must be the only thing in the message** (case-insensitive, leading/trailing
+whitespace and trailing punctuation stripped). E.g. `red up`, `Red up!`, `  red up  ` all match,
+but `red up please` or `feeling red up` don't. To use custom words (e.g. `@red`, `RED TEAM`), set
+`TRIGGER_RED`, `TRIGGER_GOLD`, etc. in `.env`.
 
 | Default trigger | Effect |
 | --- | --- |

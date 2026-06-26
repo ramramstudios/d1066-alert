@@ -49,25 +49,25 @@ export function decodeAttributedBody(buffer) {
 }
 
 /**
- * Return the color whose trigger phrase appears latest in the text, or null.
+ * Return the color whose trigger phrase matches the entire message, or null.
+ * The trigger phrase must be (nearly) the only thing in the message — leading/trailing
+ * whitespace and trailing punctuation are stripped. E.g. "Red up!" and "  red up  " match,
+ * but "red up please" doesn't.
  * @param {string} text The message text to scan.
  * @param {Object} triggers Map of color -> trigger phrase (e.g. { red: "red up", gold: "gold up", ... }).
  */
 export function detectTrigger(text, triggers) {
   if (!text || !triggers) return null;
-  const haystack = text.toLowerCase();
-  let best = null;
-  let bestIndex = -1;
+  // Normalize: trim, strip trailing punctuation, lowercase.
+  let normalized = text.trim().replace(/[!?.,:;]*$/, '').toLowerCase();
+  if (!normalized) return null;
+
   for (const color of TURN_ORDER) {
     const phrase = triggers[color];
-    if (!phrase) continue;
-    const idx = haystack.lastIndexOf(phrase);
-    if (idx > bestIndex) {
-      bestIndex = idx;
-      best = color;
-    }
+    if (!phrase || normalized !== phrase.toLowerCase()) continue;
+    return color;
   }
-  return best;
+  return null;
 }
 
 /** Resolve the readable text of a row from either the text column or attributedBody. */
