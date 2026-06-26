@@ -62,7 +62,10 @@ async function main() {
 
   function runPoll() {
     try {
-      const { trigger, lastMessageDate } = pollForTriggers(config.groupChatName, state.lastMessageDate, config.triggers);
+      const outsideHandle = config.outsidePlayerColor
+        ? config.players[config.outsidePlayerColor].appleId
+        : null;
+      const { trigger, lastMessageDate } = pollForTriggers(config.groupChatName, state.lastMessageDate, config.triggers, outsideHandle);
       if (lastMessageDate !== state.lastMessageDate) {
         state.lastMessageDate = lastMessageDate;
         saveState(state);

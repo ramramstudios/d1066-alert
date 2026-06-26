@@ -65,7 +65,7 @@ OUTSIDE_PLAYER_COLOR=silver          # red | gold | blue | silver
 OUTSIDE_PLAYER_PHONE=+15551234567    # full international format
 
 # ── Optional: trigger words ──
-# What your group says to change turns (case-insensitive, anywhere in a message).
+# What your group says to change turns. Must be the entire message (case-insensitive; trailing punctuation ok).
 TRIGGER_RED=red up
 TRIGGER_GOLD=gold up
 TRIGGER_BLUE=blue up

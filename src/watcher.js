@@ -82,25 +82,24 @@ function rowText(row) {
  * @param {string} groupChatName The display name of the iMessage group.
  * @param {number} sinceDate Mac-absolute nanoseconds; only scan messages after this.
  * @param {Object} triggers Map of color -> trigger phrase (e.g. { red: "red up", ... }).
+ * @param {string|null} outsidePlayerHandle Phone/email of the outside player's 1:1 thread (optional).
  * Returns { trigger, lastMessageDate }:
  *   trigger          — the color of the most recent trigger found, or null.
- *   lastMessageDate  — the highest message.date seen, to persist as the new cursor.
+ *   lastMessageDate  — the highest message.date seen across all sources, to persist as cursor.
  *
  * Opening the DB can briefly fail if macOS has it locked; the caller decides
  * whether to retry on the next poll, so we surface errors by throwing.
  */
-export function pollForTriggers(groupChatName, sinceDate, triggers) {
+export function pollForTriggers(groupChatName, sinceDate, triggers, outsidePlayerHandle = null) {
   let db;
   try {
     db = new Database(CHAT_DB_PATH, { readonly: true, fileMustExist: true });
     db.pragma('busy_timeout = 4000');
 
-    const rows = db
+    // Query 1: group chat, matched by display_name.
+    const groupRows = db
       .prepare(
-        `SELECT m.ROWID    AS rowid,
-                m.text     AS text,
-                m.attributedBody AS attributedBody,
-                m.date     AS date
+        `SELECT m.text AS text, m.attributedBody AS attributedBody, m.date AS date
            FROM message m
            JOIN chat_message_join cmj ON cmj.message_id = m.ROWID
            JOIN chat c                ON c.ROWID        = cmj.chat_id
@@ -110,15 +109,35 @@ export function pollForTriggers(groupChatName, sinceDate, triggers) {
       )
       .all(groupChatName, sinceDate);
 
+    // Query 2: outside player's 1:1 thread, matched by handle (phone or email).
+    const dmRows = outsidePlayerHandle
+      ? db
+          .prepare(
+            `SELECT m.text AS text, m.attributedBody AS attributedBody, m.date AS date
+               FROM message m
+               JOIN chat_message_join cmj ON cmj.message_id = m.ROWID
+               JOIN chat c                ON c.ROWID        = cmj.chat_id
+               JOIN chat_handle_join chj  ON chj.chat_id    = c.ROWID
+               JOIN handle h              ON h.ROWID        = chj.handle_id
+              WHERE h.id   = ?
+                AND m.date > ?
+              ORDER BY m.date ASC`,
+          )
+          .all(outsidePlayerHandle, sinceDate)
+      : [];
+
+    // Merge both sources and sort by date so the last trigger seen wins.
+    const allRows = [...groupRows, ...dmRows].sort((a, b) => a.date - b.date);
+
     let lastMessageDate = sinceDate;
     let trigger = null;
 
-    for (const row of rows) {
+    for (const row of allRows) {
       if (row.date > lastMessageDate) lastMessageDate = row.date;
       const detected = detectTrigger(rowText(row), triggers);
       if (detected) {
-        trigger = detected; // ASC order => last match wins (most recent trigger)
-        log(`Trigger detected: "${triggers[detected]}" in "${groupChatName}"`);
+        trigger = detected;
+        log(`Trigger detected: "${triggers[detected]}"`);
       }
     }
 
