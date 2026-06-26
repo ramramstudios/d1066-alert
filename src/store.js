@@ -31,13 +31,26 @@ const DEFAULT_STATE = {
   lastMessageDate: 0,
 };
 
+function timestamp() {
+  return new Date().toLocaleString('en-US', {
+    timeZone: 'America/Chicago',
+    month: '2-digit',
+    day: '2-digit',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: true,
+  });
+}
+
 /** Timestamped logger so launchd logs are readable. */
 export function log(...args) {
-  console.log(`[${new Date().toISOString()}]`, ...args);
+  console.log(`[${timestamp()}]`, ...args);
 }
 
 export function logError(...args) {
-  console.error(`[${new Date().toISOString()}]`, ...args);
+  console.error(`[${timestamp()}]`, ...args);
 }
 
 /** Current time as Mac absolute time in nanoseconds (matches message.date on modern macOS). */
