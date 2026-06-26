@@ -1,17 +1,18 @@
 # Dragons of 1066 — iMessage Turn Reminder Bot
 
 A small, fully-local macOS automation that watches your **Dragons of 1066** iMessage
-group chat for turn-change trigger words and sends **hourly emoji reminders** to the
+group chat for turn-change trigger words and sends **recurring emoji reminders** to the
 group — plus, optionally, a personal nudge to a player who isn't in the group chat.
 
 Everything runs on your Mac via the Messages app and the local Messages database.
 No third-party APIs, no servers, no cloud. Messages send from **your own Apple ID**.
 
+Detect turn changes and fire reminders on a schedule you set:
 ```
-red up    → 🔴 reminders every hour
-gold up   → 🟡 reminders every hour
-blue up   → 🔵 reminders every hour
-silver up → ⚪️ reminders every hour   (not in the group chat → also gets a 1:1 ping)
+red up    → 🔴 reminder sent
+gold up   → 🟡 reminder sent
+blue up   → 🔵 reminder sent
+silver up → ⚪️ reminder sent   (optional: also 1:1 to the outside player)
 ```
 
 ---
@@ -20,8 +21,8 @@ silver up → ⚪️ reminders every hour   (not in the group chat → also gets
 
 | Piece | What it does |
 | --- | --- |
-| `src/watcher.js` | Every 5 min, reads `~/Library/Messages/chat.db` (read-only) for new messages in the group chat and looks for `<color> up`. |
-| `src/scheduler.js` | Runs the hourly [`node-cron`](https://www.npmjs.com/package/node-cron) reminder job for the active color. |
+| `src/watcher.js` | Polls `~/Library/Messages/chat.db` (read-only) at a configurable interval for new messages in the group chat and detects trigger words. |
+| `src/scheduler.js` | Runs [`node-cron`](https://www.npmjs.com/package/node-cron) reminder jobs at a configurable interval for the active color. |
 | `src/sender.js` | Sends iMessages through the Messages app via AppleScript (`osascript`). |
 | `src/index.js` | Loads state, resumes the current turn, wires the poller + scheduler together. |
 | `state.json` | Remembers the current turn between restarts (and where it left off reading). |
@@ -84,10 +85,11 @@ POLL_INTERVAL_MINUTES=5              # how often to check the group for triggers
   **Leave color + phone blank if everyone is in the group chat** — the bot then just posts the
   emoji to the group, nothing else changes.
 - **`TRIGGER_RED` / `TRIGGER_GOLD` / `TRIGGER_BLUE` / `TRIGGER_SILVER`** — *optional.* What the group
-  says to change turns. Defaults are `red up`, `gold up`, etc. (case-insensitive, detected anywhere
-  in a message). Change these if your group uses different words — e.g. `@red`, `Red's turn`, etc.
-- **`REMINDER_INTERVAL_MINUTES`** — keep `60` for hourly. Other values must divide evenly
-  into 60 (e.g. 15, 20, 30); anything else falls back to hourly.
+  says to change turns (case-insensitive, as a standalone message). Defaults are `red up`, `gold up`,
+  etc. Customize these if your group uses different words — e.g. `@red`, `RED TEAM`, etc.
+- **`REMINDER_INTERVAL_MINUTES`** — how often reminders fire (in minutes). Must divide evenly into 60
+  (e.g. 15, 20, 30, 60); other values fall back to 60. Defaults to 60.
+- **`POLL_INTERVAL_MINUTES`** — how often the bot checks for new trigger words (in minutes). Defaults to 5.
 - Player **names and emojis** (🔴 🟡 🔵 ⚪️) are fixed game constants in `src/store.js` — no need to set them.
 
 > **The group chat must have a name.** AppleScript targets the group by its display
