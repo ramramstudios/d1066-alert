@@ -1,0 +1,13 @@
+# Dependencies
+node_modules/
+
+# Local config & runtime state (never commit — contain personal Apple IDs / chat data)
+config.json
+state.json
+
+# Logs
+*.log
+logs/
+
+# macOS
+.DS_Store

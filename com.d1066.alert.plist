@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.d1066.alert</string>
+
+  <!-- Update both paths below if you move the project or use a different node.
+       Find your node with:  which node  -->
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/local/bin/node</string>
+    <string>/Users/christopherstrickland/swe/d1066-alert/src/index.js</string>
+  </array>
+
+  <key>WorkingDirectory</key>
+  <string>/Users/christopherstrickland/swe/d1066-alert</string>
+
+  <!-- Start at login and keep it alive (restart on crash). -->
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+
+  <!-- All stdout/stderr (and our timestamped logs) go here. -->
+  <key>StandardOutPath</key>
+  <string>/Users/christopherstrickland/Library/Logs/d1066-alert.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/christopherstrickland/Library/Logs/d1066-alert.log</string>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+  </dict>
+
+  <!-- Throttle restart attempts so a misconfiguration doesn't spin hot. -->
+  <key>ThrottleInterval</key>
+  <integer>30</integer>
+</dict>
+</plist>

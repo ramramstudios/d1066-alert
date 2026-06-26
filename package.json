@@ -1,0 +1,20 @@
+{
+  "name": "d1066-alert",
+  "version": "1.0.0",
+  "private": true,
+  "description": "iMessage turn-reminder bot for Dragons of 1066 — watches a group chat for turn-change triggers and sends hourly emoji reminders.",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "poll": "node src/index.js --poll-once",
+    "send-test": "node src/index.js --send-test"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.8.1",
+    "node-cron": "^3.0.3"
+  }
+}
