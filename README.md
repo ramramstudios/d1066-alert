@@ -64,6 +64,13 @@ OUTSIDE_PLAYER_NAME=                  # optional — their name personalizes the
 OUTSIDE_PLAYER_COLOR=silver          # red | gold | blue | silver
 OUTSIDE_PLAYER_PHONE=+15551234567    # full international format
 
+# ── Optional: trigger words ──
+# What your group says to change turns (case-insensitive, anywhere in a message).
+TRIGGER_RED=red up
+TRIGGER_GOLD=gold up
+TRIGGER_BLUE=blue up
+TRIGGER_SILVER=silver up
+
 # ── Optional: timing (defaults shown) ──
 REMINDER_INTERVAL_MINUTES=60         # 60 = hourly; other values must divide into 60
 POLL_INTERVAL_MINUTES=5              # how often to check the group for triggers
@@ -76,6 +83,9 @@ POLL_INTERVAL_MINUTES=5              # how often to check the group for triggers
   iMessage email); **name** is optional and just personalizes their message (`Alex, your turn…`).
   **Leave color + phone blank if everyone is in the group chat** — the bot then just posts the
   emoji to the group, nothing else changes.
+- **`TRIGGER_RED` / `TRIGGER_GOLD` / `TRIGGER_BLUE` / `TRIGGER_SILVER`** — *optional.* What the group
+  says to change turns. Defaults are `red up`, `gold up`, etc. (case-insensitive, detected anywhere
+  in a message). Change these if your group uses different words — e.g. `@red`, `Red's turn`, etc.
 - **`REMINDER_INTERVAL_MINUTES`** — keep `60` for hourly. Other values must divide evenly
   into 60 (e.g. 15, 20, 30); anything else falls back to hourly.
 - Player **names and emojis** (🔴 🟡 🔵 ⚪️) are fixed game constants in `src/store.js` — no need to set them.
@@ -198,9 +208,10 @@ Reload the agent (`unload` then `load`) to pick up a hand-edited turn.
 
 ## Trigger reference
 
-Case-insensitive; detected anywhere in a group-chat message:
+The defaults below are case-insensitive and detected anywhere in a group-chat message. To use custom
+words (e.g. `@red`, `Red's turn`), set `TRIGGER_RED`, `TRIGGER_GOLD`, etc. in `.env`.
 
-| Type this in the group | Effect |
+| Default trigger | Effect |
 | --- | --- |
 | `red up`    | Current turn → Red 🔴 |
 | `gold up`   | Current turn → Gold 🟡 |

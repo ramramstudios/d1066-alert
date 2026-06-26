@@ -136,11 +136,19 @@ export function loadConfig() {
     if (rawName) players[outsidePlayerColor].name = rawName;
   }
 
+  // Build triggers: TRIGGER_RED, TRIGGER_GOLD, etc. (or defaults)
+  const triggers = {};
+  for (const color of TURN_ORDER) {
+    const envKey = `TRIGGER_${color.toUpperCase()}`;
+    triggers[color] = (env[envKey] || `${color} up`).trim().toLowerCase();
+  }
+
   return {
     groupChatName,
     players,
     outsidePlayerColor, // null when everyone is in the group chat
     outsidePlayerName: outsidePlayerColor && rawName ? rawName : null,
+    triggers,
     reminderIntervalMinutes: Number(env.REMINDER_INTERVAL_MINUTES) || 60,
     pollIntervalMinutes: Number(env.POLL_INTERVAL_MINUTES) || 5,
   };

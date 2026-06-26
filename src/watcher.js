@@ -10,8 +10,6 @@ import { TURN_ORDER, macTimeNowNs, log, logError } from './store.js';
 
 export const CHAT_DB_PATH = path.join(os.homedir(), 'Library', 'Messages', 'chat.db');
 
-// Map of lowercase trigger phrase -> color. "<color> up" sets the turn to that color.
-const TRIGGERS = TURN_ORDER.map((color) => ({ color, phrase: `${color} up` }));
 
 /**
  * Best-effort decode of a Messages `attributedBody` typedstream blob.
@@ -50,13 +48,19 @@ export function decodeAttributedBody(buffer) {
   return data.slice(p, p + length).toString('utf8');
 }
 
-/** Return the color whose trigger phrase appears latest in the text, or null. */
-export function detectTrigger(text) {
-  if (!text) return null;
+/**
+ * Return the color whose trigger phrase appears latest in the text, or null.
+ * @param {string} text The message text to scan.
+ * @param {Object} triggers Map of color -> trigger phrase (e.g. { red: "red up", gold: "gold up", ... }).
+ */
+export function detectTrigger(text, triggers) {
+  if (!text || !triggers) return null;
   const haystack = text.toLowerCase();
   let best = null;
   let bestIndex = -1;
-  for (const { color, phrase } of TRIGGERS) {
+  for (const color of TURN_ORDER) {
+    const phrase = triggers[color];
+    if (!phrase) continue;
     const idx = haystack.lastIndexOf(phrase);
     if (idx > bestIndex) {
       bestIndex = idx;
@@ -75,6 +79,9 @@ function rowText(row) {
 /**
  * Poll the group chat for messages newer than `sinceDate` (Mac-absolute ns).
  *
+ * @param {string} groupChatName The display name of the iMessage group.
+ * @param {number} sinceDate Mac-absolute nanoseconds; only scan messages after this.
+ * @param {Object} triggers Map of color -> trigger phrase (e.g. { red: "red up", ... }).
  * Returns { trigger, lastMessageDate }:
  *   trigger          — the color of the most recent trigger found, or null.
  *   lastMessageDate  — the highest message.date seen, to persist as the new cursor.
@@ -82,7 +89,7 @@ function rowText(row) {
  * Opening the DB can briefly fail if macOS has it locked; the caller decides
  * whether to retry on the next poll, so we surface errors by throwing.
  */
-export function pollForTriggers(groupChatName, sinceDate) {
+export function pollForTriggers(groupChatName, sinceDate, triggers) {
   let db;
   try {
     db = new Database(CHAT_DB_PATH, { readonly: true, fileMustExist: true });
@@ -108,10 +115,10 @@ export function pollForTriggers(groupChatName, sinceDate) {
 
     for (const row of rows) {
       if (row.date > lastMessageDate) lastMessageDate = row.date;
-      const detected = detectTrigger(rowText(row));
+      const detected = detectTrigger(rowText(row), triggers);
       if (detected) {
         trigger = detected; // ASC order => last match wins (most recent trigger)
-        log(`Trigger detected: "${detected} up" in "${groupChatName}"`);
+        log(`Trigger detected: "${triggers[detected]}" in "${groupChatName}"`);
       }
     }
 

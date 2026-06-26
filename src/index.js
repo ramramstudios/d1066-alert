@@ -63,7 +63,7 @@ async function main() {
 
   function runPoll() {
     try {
-      const { trigger, lastMessageDate } = pollForTriggers(config.groupChatName, state.lastMessageDate);
+      const { trigger, lastMessageDate } = pollForTriggers(config.groupChatName, state.lastMessageDate, config.triggers);
       if (lastMessageDate !== state.lastMessageDate) {
         state.lastMessageDate = lastMessageDate;
         saveState(state);
@@ -83,7 +83,8 @@ async function main() {
     log(`Resuming current turn: ${state.currentTurn} ${config.players[state.currentTurn]?.emoji}`);
     scheduler.start(state.currentTurn);
   } else {
-    log('No current turn set — waiting for a trigger word ("red up", "gold up", ...).');
+    const exampleTrigger = config.triggers.red;
+    log(`No current turn set — waiting for a trigger word (e.g. "${exampleTrigger}").`);
   }
 
   if (args.includes('--poll-once')) {
