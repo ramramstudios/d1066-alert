@@ -148,21 +148,20 @@ The launchd agent starts the bot at login and restarts it if it crashes.
 The plist already points at `/usr/local/bin/node` and this project folder. If your node
 path or project location differ, edit `com.d1066.alert.plist` first (see the comments in it).
 
-Symlink it into `~/Library/LaunchAgents` (symlink = edits here stay in sync), then load it:
+Copy it to `~/Library/LaunchAgents` and load it:
 
 ```bash
-ln -sf "$PWD/com.d1066.alert.plist" ~/Library/LaunchAgents/com.d1066.alert.plist
-launchctl load -w ~/Library/LaunchAgents/com.d1066.alert.plist
+cp com.d1066.alert.plist ~/Library/LaunchAgents/
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.d1066.alert.plist
 ```
-
-> On newer macOS you can equivalently use:
-> `launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.d1066.alert.plist`
 
 Confirm it's running:
 
 ```bash
 launchctl list | grep com.d1066.alert
 ```
+
+You should see output like `12345	0	com.d1066.alert` (the exact PID varies).
 
 ### Check the logs
 
@@ -175,12 +174,10 @@ tail -f ~/Library/Logs/d1066-alert.log
 ### Stop / unload the agent
 
 ```bash
-launchctl unload -w ~/Library/LaunchAgents/com.d1066.alert.plist
-# newer macOS equivalent:
-# launchctl bootout gui/$(id -u)/com.d1066.alert
+launchctl bootout gui/$(id -u) ~/Library/LaunchAgents/com.d1066.alert.plist
 ```
 
-To apply changes after editing code or the plist: `unload` then `load` again.
+To apply changes after editing code or the plist: `bootout` then `bootstrap` again.
 
 ---
 
