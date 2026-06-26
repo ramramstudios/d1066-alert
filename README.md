@@ -141,6 +141,10 @@ next poll, and confirm the turn changes in the logs. <kbd>Ctrl</kbd>+<kbd>C</kbd
 > known limitation on macOS Monterey: `sandboxd` blocks the background process from
 > reading `chat.db`, so polling and trigger detection don't work — only reminders fire.
 > Until that's resolved, `npm start` is the reliable path.
+>
+> **Use the macOS Terminal app** (or iTerm), not the terminal built into VS Code. VS Code's
+> integrated terminal doesn't inherit Terminal's Full Disk Access grant, so polling fails
+> there for the same reason it fails under launchd.
 
 ---
 
