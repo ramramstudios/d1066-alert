@@ -2,7 +2,7 @@
 
 A small, fully-local macOS automation that watches your **Dragons of 1066** iMessage
 group chat for turn-change trigger words and sends **hourly emoji reminders** to the
-group — plus a personal nudge to the one player who isn't in the group chat.
+group — plus, optionally, a personal nudge to a player who isn't in the group chat.
 
 Everything runs on your Mac via the Messages app and the local Messages database.
 No third-party APIs, no servers, no cloud. Messages send from **your own Apple ID**.
@@ -25,7 +25,7 @@ silver up → ⚪️ reminders every hour   (not in the group chat → also gets
 | `src/sender.js` | Sends iMessages through the Messages app via AppleScript (`osascript`). |
 | `src/index.js` | Loads state, resumes the current turn, wires the poller + scheduler together. |
 | `state.json` | Remembers the current turn between restarts (and where it left off reading). |
-| `config.json` | Your settings (group name, players, the outside player's Apple ID). **Not committed.** |
+| `.env` | Your settings (group name; optional outside player + phone). **Not committed.** |
 
 When a trigger is detected, the bot updates `state.json`, cancels the old reminder
 job, and starts a new one for the new color. On login/restart it reads `state.json`
@@ -48,32 +48,37 @@ npm install
 ### 2. Create your config
 
 ```bash
-cp config.example.json config.json
+cp .env.example .env
 ```
 
-Then edit `config.json`:
+Then edit `.env`. **Only `GROUP_CHAT_NAME` is always required:**
 
-```json
-{
-  "groupChatName": "Dragons of 1066",
-  "players": {
-    "red":    { "name": "Red",    "emoji": "🔴", "appleId": null },
-    "gold":   { "name": "Gold",   "emoji": "🟡", "appleId": null },
-    "blue":   { "name": "Blue",   "emoji": "🔵", "appleId": null },
-    "silver": { "name": "Silver", "emoji": "⚪️", "appleId": "player@example.com" }
-  },
-  "outsidePlayerColor": "silver",
-  "reminderIntervalMinutes": 60,
-  "pollIntervalMinutes": 5
-}
+```bash
+# ── Required ──
+GROUP_CHAT_NAME=Dragons of 1066      # exact name of the group in Messages
+
+# ── Optional: outside player (one player not in the group chat) ──
+# Set COLOR + PHONE to give that player a private 1:1 reminder on their turn (NAME optional).
+# Leave color + phone blank if everyone is in the group chat — the bot just posts to the group.
+OUTSIDE_PLAYER_NAME=                  # optional — their name personalizes the DM ("Alex, your turn…")
+OUTSIDE_PLAYER_COLOR=silver          # red | gold | blue | silver
+OUTSIDE_PLAYER_PHONE=+15551234567    # full international format
+
+# ── Optional: timing (defaults shown) ──
+REMINDER_INTERVAL_MINUTES=60         # 60 = hourly; other values must divide into 60
+POLL_INTERVAL_MINUTES=5              # how often to check the group for triggers
 ```
 
-- **`groupChatName`** — must exactly match the group's name in Messages (see note below).
-- **`outsidePlayerColor`** — which color belongs to the player who isn't in the group chat.
-- **`players.<color>.appleId`** — set this for `outsidePlayerColor` to that player's iMessage email or
-  phone number (e.g. `"+15551234567"`). The other colors can stay `null`.
-- **`reminderIntervalMinutes`** — keep `60` for hourly. Other values must divide evenly
+- **`GROUP_CHAT_NAME`** — must exactly match the group's name in Messages (see note below). The only always-required value.
+- **`OUTSIDE_PLAYER_NAME` / `OUTSIDE_PLAYER_COLOR` / `OUTSIDE_PLAYER_PHONE`** — *optional.* Only for
+  when one player isn't in the group chat and you want them DM'd on their turn. Set the **color**
+  (`red`/`gold`/`blue`/`silver`) and **phone** (full international format like `+15551234567`, or an
+  iMessage email); **name** is optional and just personalizes their message (`Alex, your turn…`).
+  **Leave color + phone blank if everyone is in the group chat** — the bot then just posts the
+  emoji to the group, nothing else changes.
+- **`REMINDER_INTERVAL_MINUTES`** — keep `60` for hourly. Other values must divide evenly
   into 60 (e.g. 15, 20, 30); anything else falls back to hourly.
+- Player **names and emojis** (🔴 🟡 🔵 ⚪️) are fixed game constants in `src/store.js` — no need to set them.
 
 > **The group chat must have a name.** AppleScript targets the group by its display
 > name. In Messages, open the conversation → click the participants at the top →
@@ -203,7 +208,7 @@ Case-insensitive; detected anywhere in a group-chat message:
 | `silver up` | Current turn → Silver ⚪️ (outside player also gets a 1:1) |
 
 - Group reminder message: just the emoji, e.g. `🔴`.
-- The outside player's 1:1 message (only on their turn): `Your turn in Dragons of 1066! ⚪️`.
+- The outside player's 1:1 message (only if configured, and only on their turn): `Your turn in Dragons of 1066! ⚪️` — or `Alex, your turn in Dragons of 1066! ⚪️` if you set `OUTSIDE_PLAYER_NAME`.
 
 ---
 
@@ -213,7 +218,7 @@ Case-insensitive; detected anywhere in a group-chat message:
 Full Disk Access. Re-check step 3a. After granting, fully quit and relaunch the terminal,
 or `unload`/`load` the agent.
 
-**`No iMessage chat named '…' was found`** — `groupChatName` doesn't match the group's
+**`No iMessage chat named '…' was found`** — `GROUP_CHAT_NAME` doesn't match the group's
 actual name in Messages, or the group has no name set. Rename the conversation in
 Messages and match it exactly.
 
@@ -239,7 +244,7 @@ sent *after* it starts are considered.
 
 ## Privacy & safety
 
-- `config.json` and `state.json` are git-ignored — they hold your Apple IDs and chat
+- `.env` and `state.json` are git-ignored — they hold the player's phone number and chat
   cursor and are never committed.
 - `chat.db` is opened **read-only**; the bot never writes to your Messages database.
 - All messages are sent from your own Apple ID via the Messages app on your Mac.

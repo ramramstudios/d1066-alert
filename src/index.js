@@ -20,11 +20,19 @@ import { sendToGroup, sendToHandle } from './sender.js';
 async function sendTest(config) {
   log('Running --send-test (verifies Full Disk Access + Messages Automation)...');
   checkDbAccess();
+  await sendToGroup(config.groupChatName, '🧪 d1066-alert test');
   const outsideColor = config.outsidePlayerColor;
-  const outsidePlayer = config.players[outsideColor];
-  await sendToGroup(config.groupChatName, `🧪 d1066-alert test ${outsidePlayer.emoji}`);
-  await sendToHandle(outsidePlayer.appleId, `🧪 d1066-alert test — turn pings will look like: Your turn in Dragons of 1066! ${outsidePlayer.emoji}`);
-  log('Send test complete — check the group chat and the outside player.');
+  if (outsideColor) {
+    const outsidePlayer = config.players[outsideColor];
+    const greeting = config.outsidePlayerName ? `${config.outsidePlayerName}, your turn` : 'Your turn';
+    await sendToHandle(
+      outsidePlayer.appleId,
+      `🧪 d1066-alert test — turn pings will look like: ${greeting} in Dragons of 1066! ${outsidePlayer.emoji}`,
+    );
+    log('Send test complete — check the group chat and the outside player.');
+  } else {
+    log('Send test complete — group-only (no outside player configured).');
+  }
 }
 
 async function main() {

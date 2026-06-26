@@ -7,11 +7,20 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 export const ROOT = path.resolve(__dirname, '..');
-export const CONFIG_PATH = path.join(ROOT, 'config.json');
+export const ENV_PATH = path.join(ROOT, '.env');
 export const STATE_PATH = path.join(ROOT, 'state.json');
 
 // Turn order for Dragons of 1066. Also the set of valid colors / trigger keys.
 export const TURN_ORDER = ['red', 'gold', 'blue', 'silver'];
+
+// Fixed game constants — display names and emojis are the same for every install,
+// so only personal/per-game values live in .env (see loadConfig()).
+const PLAYER_DEFAULTS = {
+  red:    { name: 'Red',    emoji: '🔴' },
+  gold:   { name: 'Gold',   emoji: '🟡' },
+  blue:   { name: 'Blue',   emoji: '🔵' },
+  silver: { name: 'Silver', emoji: '⚪️' },
+};
 
 // Unix epoch (seconds) for 2001-01-01T00:00:00Z — the Mac "absolute time" reference.
 const MAC_EPOCH_OFFSET_SECONDS = 978307200;
@@ -42,53 +51,99 @@ export function macNsToDate(ns) {
   return new Date((Number(ns) / 1e9 + MAC_EPOCH_OFFSET_SECONDS) * 1000);
 }
 
-/** Load and validate config.json, throwing a clear, actionable error if it's wrong. */
-export function loadConfig() {
-  if (!fs.existsSync(CONFIG_PATH)) {
-    throw new Error(
-      `config.json not found at ${CONFIG_PATH}.\n` +
-        `Create it by copying the template:  cp config.example.json config.json\n` +
-        `then fill in your group chat name and the outside player's Apple ID.`,
-    );
-  }
-
-  let config;
-  try {
-    config = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8'));
-  } catch (err) {
-    throw new Error(`config.json is not valid JSON: ${err.message}`);
-  }
-
-  if (!config.groupChatName || typeof config.groupChatName !== 'string') {
-    throw new Error('config.json: "groupChatName" must be a non-empty string.');
-  }
-  if (!config.players || typeof config.players !== 'object') {
-    throw new Error('config.json: "players" object is missing.');
-  }
-  for (const color of TURN_ORDER) {
-    const p = config.players[color];
-    if (!p || typeof p.emoji !== 'string' || !p.emoji) {
-      throw new Error(`config.json: players.${color}.emoji is missing.`);
+/** Minimal .env reader: `KEY=value` lines, `#` comments, optional surrounding quotes. */
+function parseEnvFile(filePath) {
+  const out = {};
+  for (const raw of fs.readFileSync(filePath, 'utf8').split('\n')) {
+    const line = raw.trim();
+    if (!line || line.startsWith('#')) continue;
+    const eq = line.indexOf('=');
+    if (eq === -1) continue;
+    const key = line.slice(0, eq).trim();
+    let value = line.slice(eq + 1).trim();
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      value = value.slice(1, -1);
     }
+    out[key] = value;
   }
-  if (!TURN_ORDER.includes(config.outsidePlayerColor)) {
+  return out;
+}
+
+/**
+ * Load config from the git-ignored .env file and assemble the runtime config object.
+ * Only personal/per-game values come from .env; emojis, names and turn order are fixed
+ * constants. Throws a clear, actionable error if a required value is missing.
+ */
+export function loadConfig() {
+  if (!fs.existsSync(ENV_PATH)) {
     throw new Error(
-      `config.json: "outsidePlayerColor" must be one of ${TURN_ORDER.join(', ')} (got ${config.outsidePlayerColor}).`,
-    );
-  }
-  const outsidePlayer = config.players[config.outsidePlayerColor];
-  if (!outsidePlayer.appleId) {
-    throw new Error(
-      `config.json: players.${config.outsidePlayerColor}.appleId is null, but outsidePlayerColor points to it. ` +
-        `Set the outside player's Apple ID (email or phone) there.`,
+      `.env not found at ${ENV_PATH}.\n` +
+        `Create it by copying the template:  cp .env.example .env\n` +
+        `then fill in GROUP_CHAT_NAME (and the OUTSIDE_PLAYER_* values if one player isn't in the group).`,
     );
   }
 
-  // Normalize intervals to sane positive numbers.
-  config.reminderIntervalMinutes = Number(config.reminderIntervalMinutes) || 60;
-  config.pollIntervalMinutes = Number(config.pollIntervalMinutes) || 5;
+  const env = parseEnvFile(ENV_PATH);
 
-  return config;
+  const groupChatName = (env.GROUP_CHAT_NAME || '').trim();
+  if (!groupChatName) {
+    throw new Error('.env: GROUP_CHAT_NAME is required (the exact name of your iMessage group).');
+  }
+
+  // The "outside player" (one player not in the group chat, who gets a private 1:1 reminder)
+  // is OPTIONAL. Leave the OUTSIDE_PLAYER_* values blank if everyone is in the group chat — the
+  // bot then just posts the emoji to the group. To enable it, set both COLOR and PHONE (NAME is
+  // optional and only personalizes their message).
+  const rawColor = (env.OUTSIDE_PLAYER_COLOR || '').trim().toLowerCase();
+  const rawHandle = (env.OUTSIDE_PLAYER_PHONE || '').trim(); // phone or iMessage email
+  const rawName = (env.OUTSIDE_PLAYER_NAME || '').trim(); // optional, personalizes their DM
+
+  let outsidePlayerColor = null;
+  if (rawColor || rawHandle) {
+    if (!TURN_ORDER.includes(rawColor)) {
+      throw new Error(
+        `.env: OUTSIDE_PLAYER_COLOR must be one of ${TURN_ORDER.join(', ')} (got "${env.OUTSIDE_PLAYER_COLOR || ''}"). ` +
+          `Leave the OUTSIDE_PLAYER_* values blank if everyone is in the group chat.`,
+      );
+    }
+    if (!rawHandle) {
+      throw new Error(
+        '.env: OUTSIDE_PLAYER_PHONE is required when OUTSIDE_PLAYER_COLOR is set — the phone number ' +
+          '(e.g. +15551234567) of the player not in the group chat. Leave both blank if everyone is in the group chat.',
+      );
+    }
+    if (!rawHandle.includes('@') && !/^\+?\d{7,}$/.test(rawHandle)) {
+      logError(
+        `Warning: OUTSIDE_PLAYER_PHONE "${rawHandle}" doesn't look like a phone number; ` +
+          `use full international format, e.g. +15551234567.`,
+      );
+    }
+    outsidePlayerColor = rawColor;
+  }
+
+  // Assemble players: fixed emojis + names (names default to the color word, but the outside
+  // player can override theirs via OUTSIDE_PLAYER_NAME). The outside player's handle is stored
+  // under `appleId` (Messages accepts a phone or email there).
+  const players = {};
+  for (const color of TURN_ORDER) {
+    players[color] = { ...PLAYER_DEFAULTS[color], appleId: null };
+  }
+  if (outsidePlayerColor) {
+    players[outsidePlayerColor].appleId = rawHandle;
+    if (rawName) players[outsidePlayerColor].name = rawName;
+  }
+
+  return {
+    groupChatName,
+    players,
+    outsidePlayerColor, // null when everyone is in the group chat
+    outsidePlayerName: outsidePlayerColor && rawName ? rawName : null,
+    reminderIntervalMinutes: Number(env.REMINDER_INTERVAL_MINUTES) || 60,
+    pollIntervalMinutes: Number(env.POLL_INTERVAL_MINUTES) || 5,
+  };
 }
 
 /** Load state.json, creating it from defaults if missing or corrupt. */

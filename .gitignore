@@ -1,9 +1,12 @@
 # Dependencies
 node_modules/
 
-# Local config & runtime state (never commit — contain personal Apple IDs / chat data)
-config.json
+# Local config & runtime state (never commit — contain personal phone numbers / chat data)
+.env
+.env.*
+!.env.example
 state.json
+config.json
 
 # Logs
 *.log
