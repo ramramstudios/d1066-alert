@@ -128,18 +128,32 @@ This bot needs two privacy permissions. Both live in **System Settings → Priva
 > from Terminal and approve the **Automation** prompt. After that the launchd agent can
 > send without a UI session. If reminders silently don't send, see Troubleshooting.
 
-### 4. Try it in the foreground first
+### 4. Run it
 
 ```bash
 npm start
 ```
 
-You should see timestamped logs. Post `red up` in the group chat (or have someone do
-it), wait for the next poll, and confirm the turn changes in the logs. <kbd>Ctrl</kbd>+<kbd>C</kbd> to stop.
+You should see timestamped logs. Post a trigger word in the group chat, wait for the
+next poll, and confirm the turn changes in the logs. <kbd>Ctrl</kbd>+<kbd>C</kbd> to stop.
+
+> **Recommended: run this way for now.** `npm start` from Terminal gives the bot
+> full access to `chat.db` (via Terminal's Full Disk Access grant), so both trigger
+> detection and reminders work correctly. The launchd auto-start method below has a
+> known limitation on macOS Monterey: `sandboxd` blocks the background process from
+> reading `chat.db`, so polling and trigger detection don't work — only reminders fire.
+> Until that's resolved, `npm start` is the reliable path.
 
 ---
 
-## Run it automatically with launchd
+## Run it automatically with launchd (reminders only — polling broken on Monterey)
+
+> ⚠️ **Known issue:** On macOS Monterey, when the bot runs as a launchd background
+> agent, `sandboxd` intercepts its access to `chat.db` even though `node` has Full
+> Disk Access granted in System Settings. Reminders fire on schedule, but trigger words
+> in the group chat are not detected — turns must be changed manually (see
+> [Manually setting the turn](#manually-setting-the-turn)). `npm start` from Terminal
+> does not have this limitation.
 
 The launchd agent starts the bot at login and restarts it if it crashes.
 
