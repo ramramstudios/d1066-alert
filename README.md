@@ -259,7 +259,15 @@ sent *after* it starts are considered.
 
 ## Privacy & safety
 
-- `.env` and `state.json` are git-ignored — they hold the player's phone number and chat
-  cursor and are never committed.
-- `chat.db` is opened **read-only**; the bot never writes to your Messages database.
-- All messages are sent from your own Apple ID via the Messages app on your Mac.
+- **Everything is local.** The bot runs entirely on your Mac and reads from your local Messages
+  database (`~/Library/Messages/chat.db`). No data leaves your machine; no external service sees
+  your messages or conversations.
+- **You own the data access.** The bot reads the same Messages database *you* (the Mac's owner) can
+  already read directly — it's your own Mac, your own account. Running this automation isn't
+  granting anyone new access; it's just automating something you could do manually yourself.
+- **Messages are sent from your account.** All reminders are sent from your own Apple ID via
+  the Messages app on your Mac. The receiver sees them as coming from you, because they do.
+- **No writing to chat.db.** The bot opens the Messages database read-only; it never modifies,
+  logs, or stores message content. It only scans for trigger words in real time.
+- `.env` and `state.json` are git-ignored — they hold your configuration (optionally including
+  a player's phone number) and chat cursor, and are never committed to version control.
