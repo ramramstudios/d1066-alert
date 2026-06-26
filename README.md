@@ -61,7 +61,6 @@ GROUP_CHAT_NAME=Dragons of 1066      # exact name of the group in Messages
 # ── Optional: outside player (one player not in the group chat) ──
 # Set COLOR + PHONE to give that player a private 1:1 reminder on their turn (NAME optional).
 # Leave color + phone blank if everyone is in the group chat — the bot just posts to the group.
-OUTSIDE_PLAYER_NAME=                  # optional — their name personalizes the DM ("Alex, your turn…")
 OUTSIDE_PLAYER_COLOR=silver          # red | gold | blue | silver
 OUTSIDE_PLAYER_PHONE=+15551234567    # full international format
 
@@ -78,12 +77,11 @@ POLL_INTERVAL_MINUTES=5              # how often to check the group for triggers
 ```
 
 - **`GROUP_CHAT_NAME`** — must exactly match the group's name in Messages (see note below). The only always-required value.
-- **`OUTSIDE_PLAYER_NAME` / `OUTSIDE_PLAYER_COLOR` / `OUTSIDE_PLAYER_PHONE`** — *optional.* Only for
-  when one player isn't in the group chat and you want them DM'd on their turn. Set the **color**
+- **`OUTSIDE_PLAYER_COLOR` / `OUTSIDE_PLAYER_PHONE`** — *optional.* Only for when one player
+  isn't in the group chat and you want them DM'd on their turn. Set the **color**
   (`red`/`gold`/`blue`/`silver`) and **phone** (full international format like `+15551234567`, or an
-  iMessage email); **name** is optional and just personalizes their message (`Alex, your turn…`).
-  **Leave color + phone blank if everyone is in the group chat** — the bot then just posts the
-  emoji to the group, nothing else changes.
+  iMessage email). **Leave both blank if everyone is in the group chat** — the bot then just posts
+  the emoji to the group, nothing else changes.
 - **`TRIGGER_RED` / `TRIGGER_GOLD` / `TRIGGER_BLUE` / `TRIGGER_SILVER`** — *optional.* What the group
   says to change turns (case-insensitive, as a standalone message). Defaults are `red up`, `gold up`,
   etc. Customize these if your group uses different words — e.g. `@red`, `RED TEAM`, etc.
@@ -234,7 +232,7 @@ but `red up please` or `feeling red up` don't. To use custom words (e.g. `@red`,
 | `silver up` | Current turn → Silver ⚪️ (outside player also gets a 1:1) |
 
 - Group reminder message: just the emoji, e.g. `🔴`.
-- The outside player's 1:1 message (only if configured, and only on their turn): `Your turn in Dragons of 1066! ⚪️` — or `Alex, your turn in Dragons of 1066! ⚪️` if you set `OUTSIDE_PLAYER_NAME`.
+- The outside player's 1:1 message (only if configured, and only on their turn): just their color emoji, e.g. `⚪️`.
 
 ---
 

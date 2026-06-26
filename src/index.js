@@ -24,10 +24,9 @@ async function sendTest(config) {
   const outsideColor = config.outsidePlayerColor;
   if (outsideColor) {
     const outsidePlayer = config.players[outsideColor];
-    const greeting = config.outsidePlayerName ? `${config.outsidePlayerName}, your turn` : 'Your turn';
     await sendToHandle(
       outsidePlayer.appleId,
-      `🧪 d1066-alert test — turn pings will look like: ${greeting} in Dragons of 1066! ${outsidePlayer.emoji}`,
+      `🧪 d1066-alert test — turn pings will look like: ${outsidePlayer.emoji}`,
     );
     log('Send test complete — check the group chat and the outside player.');
   } else {

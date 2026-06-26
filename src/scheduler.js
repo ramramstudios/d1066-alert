@@ -43,10 +43,8 @@ export function createScheduler(config) {
 
     // The outside player gets a personalized 1:1 only when the active color is theirs.
     if (color === config.outsidePlayerColor && player.appleId) {
-      const greeting = config.outsidePlayerName ? `${config.outsidePlayerName}, your turn` : 'Your turn';
-      const note = `${greeting} in Dragons of 1066! ${player.emoji}`;
       try {
-        await sendToHandle(player.appleId, note);
+        await sendToHandle(player.appleId, player.emoji);
       } catch {
         /* sender already logged */
       }

@@ -94,12 +94,10 @@ export function loadConfig() {
   }
 
   // The "outside player" (one player not in the group chat, who gets a private 1:1 reminder)
-  // is OPTIONAL. Leave the OUTSIDE_PLAYER_* values blank if everyone is in the group chat — the
-  // bot then just posts the emoji to the group. To enable it, set both COLOR and PHONE (NAME is
-  // optional and only personalizes their message).
+  // is OPTIONAL. Leave both values blank if everyone is in the group chat — the bot then just
+  // posts the emoji to the group. To enable it, set both COLOR and PHONE.
   const rawColor = (env.OUTSIDE_PLAYER_COLOR || '').trim().toLowerCase();
   const rawHandle = (env.OUTSIDE_PLAYER_PHONE || '').trim(); // phone or iMessage email
-  const rawName = (env.OUTSIDE_PLAYER_NAME || '').trim(); // optional, personalizes their DM
 
   let outsidePlayerColor = null;
   if (rawColor || rawHandle) {
@@ -124,8 +122,7 @@ export function loadConfig() {
     outsidePlayerColor = rawColor;
   }
 
-  // Assemble players: fixed emojis + names (names default to the color word, but the outside
-  // player can override theirs via OUTSIDE_PLAYER_NAME). The outside player's handle is stored
+  // Assemble players: fixed emojis + names. The outside player's handle is stored
   // under `appleId` (Messages accepts a phone or email there).
   const players = {};
   for (const color of TURN_ORDER) {
@@ -133,7 +130,6 @@ export function loadConfig() {
   }
   if (outsidePlayerColor) {
     players[outsidePlayerColor].appleId = rawHandle;
-    if (rawName) players[outsidePlayerColor].name = rawName;
   }
 
   // Build triggers: TRIGGER_RED, TRIGGER_GOLD, etc. (or defaults)
@@ -147,7 +143,6 @@ export function loadConfig() {
     groupChatName,
     players,
     outsidePlayerColor, // null when everyone is in the group chat
-    outsidePlayerName: outsidePlayerColor && rawName ? rawName : null,
     triggers,
     reminderIntervalMinutes: Number(env.REMINDER_INTERVAL_MINUTES) || 60,
     pollIntervalMinutes: Number(env.POLL_INTERVAL_MINUTES) || 5,
