@@ -59,17 +59,21 @@ export function createScheduler(config) {
       return activeColor;
     },
 
-    /** Start (or restart) the reminder job for a color, firing one reminder immediately. */
+    /** Start (or restart) the recurring reminder job for a color (no immediate send). */
     start(color) {
       this.stop();
       activeColor = color;
       const expr = cronExpressionFor(config.reminderIntervalMinutes);
-      // Fire immediately on trigger, then again on the cron schedule from this point.
-      fireReminder(color).catch((err) => logError(`Immediate reminder failed: ${err.message}`));
       task = cron.schedule(expr, () => {
         fireReminder(color).catch((err) => logError(`Reminder tick failed: ${err.message}`));
       });
       log(`Reminders started for ${color} (${config.players[color]?.emoji}) on schedule "${expr}".`);
+    },
+
+    /** Make `color` the active turn: (re)start its schedule AND send one reminder immediately. */
+    setTurn(color) {
+      this.start(color);
+      return fireReminder(color).catch((err) => logError(`Immediate reminder failed: ${err.message}`));
     },
 
     /** Stop the current reminder job, if any. */

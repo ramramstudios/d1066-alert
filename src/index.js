@@ -52,15 +52,20 @@ async function main() {
     saveState(state);
   }
 
-  function onTrigger(color) {
+  // Update the current turn from a detected trigger. When `activate` is true we also
+  // (re)start the schedule and throw an orb immediately; during boot catch-up it's false,
+  // so we just figure out whose turn it is without sending anything yet.
+  function applyTrigger(color, { activate }) {
     state.currentTurn = color;
     state.lastTriggeredAt = new Date().toISOString();
     saveState(state);
-    scheduler.start(color); // stops any prior job and starts a fresh one
-    log(`Turn changed to ${color} ${config.players[color]?.emoji}.`);
+    if (activate) {
+      scheduler.setTurn(color); // restart schedule + throw one orb now
+      log(`Turn changed to ${color} ${config.players[color]?.emoji}.`);
+    }
   }
 
-  function runPoll() {
+  function runPoll({ activate }) {
     try {
       const outsideHandle = config.outsidePlayerColor
         ? config.players[config.outsidePlayerColor].appleId
@@ -71,8 +76,8 @@ async function main() {
         saveState(state);
       }
       if (trigger && trigger !== state.currentTurn) {
-        onTrigger(trigger);
-      } else if (trigger) {
+        applyTrigger(trigger, { activate });
+      } else if (trigger && activate) {
         log(`Trigger for ${trigger} ignored — already the active turn.`);
       }
     } catch (err) {
@@ -80,28 +85,30 @@ async function main() {
     }
   }
 
-  // Resume an in-progress turn from persisted state.
-  if (state.currentTurn && TURN_ORDER.includes(state.currentTurn)) {
-    log(`Resuming current turn: ${state.currentTurn} ${config.players[state.currentTurn]?.emoji}`);
-    scheduler.start(state.currentTurn);
-  } else {
-    const exampleTrigger = config.triggers.red;
-    log(`No current turn set — waiting for a trigger word (e.g. "${exampleTrigger}").`);
+  if (args.includes('--poll-once')) {
+    runPoll({ activate: false });
+    log('Single poll complete.');
+    return;
   }
 
-  if (args.includes('--poll-once')) {
-    runPoll();
-    log('Single poll complete.');
-    scheduler.stop();
-    return;
+  // Catch up on any triggers received while we were off, so we land on the TRUE current
+  // turn before throwing the first orb. No orb is sent during catch-up.
+  runPoll({ activate: false });
+
+  // Now that we know whose turn it actually is, activate it and throw exactly one orb.
+  if (state.currentTurn && TURN_ORDER.includes(state.currentTurn)) {
+    log(`Resuming current turn: ${state.currentTurn} ${config.players[state.currentTurn]?.emoji}`);
+    scheduler.setTurn(state.currentTurn);
+  } else {
+    log(`No current turn set — waiting for a trigger word (e.g. "${config.triggers.red}").`);
   }
 
   const pollMs = Math.max(1, config.pollIntervalMinutes) * 60 * 1000;
   log(`Watching "${config.groupChatName}" every ${config.pollIntervalMinutes} min; ` +
       `reminders every ${config.reminderIntervalMinutes} min.`);
 
-  const pollTimer = setInterval(runPoll, pollMs);
-  runPoll(); // poll immediately on startup
+  // From here on, live triggers change the turn and fire immediately.
+  const pollTimer = setInterval(() => runPoll({ activate: true }), pollMs);
 
   function shutdown(signal) {
     log(`Received ${signal}; shutting down.`);
