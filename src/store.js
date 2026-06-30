@@ -9,6 +9,9 @@ const __dirname = path.dirname(__filename);
 export const ROOT = path.resolve(__dirname, '..');
 export const ENV_PATH = path.join(ROOT, '.env');
 export const STATE_PATH = path.join(ROOT, 'state.json');
+// RAG context for AI replies — DJT post corpus used as a VOICE reference. Default is
+// the plain-text feed (one post per line); the loader also accepts .json/.jsonl.
+export const RAG_PATH = path.join(ROOT, 'trumpbot', 'trump.txt');
 
 // Turn order for Dragons of 1066. Also the set of valid colors / trigger keys.
 export const TURN_ORDER = ['red', 'gold', 'blue', 'silver'];
@@ -165,7 +168,16 @@ export function loadConfig() {
     enabled: aiEnabled,
     apiKey: aiApiKey,
     model: (env.OPENAI_MODEL || '').trim(), // '' → ai.js falls back to DEFAULT_MODEL
-    prompt: (env.AI_PROMPT || '').trim() || '1+2=?',
+    // Prompt template sent on a turn change. `{team}` is filled with the active color's
+    // display name (the per-turn "seed"); `{color}` with the raw color.
+    prompt: (env.AI_PROMPT || '').trim() || "roast or boast {team}, it's up to you DJT",
+    // Prompt template used on the recurring reminder ticks instead of `prompt` — a nag
+    // about the player who still hasn't moved. Same `{team}`/`{color}` placeholders.
+    reminderPrompt: (env.AI_REMINDER_PROMPT || '').trim() ||
+      "we're STILL waiting on the low energy, SAD, WEAK {team} to move — we've NEVER seen anyone so lazy!",
+    // RAG voice reference (DJT post corpus). Override with AI_CONTEXT_FILE
+    // (.txt one-post-per-line, or .json/.jsonl with a content/visible_text field).
+    contextFile: (env.AI_CONTEXT_FILE || '').trim() || RAG_PATH,
   };
 
   return {

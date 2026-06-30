@@ -79,7 +79,12 @@ async function main() {
   }
 
   const state = loadState();
-  const scheduler = createScheduler(config);
+  // Post the model's reply right after every emoji the scheduler sends (resume, each
+  // reminder tick, and live turn changes). fireAiCompletion is a no-op when AI is
+  // unconfigured and owns its own errors, so this can never stall reminders.
+  const scheduler = createScheduler(config, (color, phase) =>
+    fireAiCompletion(config, color, phase),
+  );
 
   // First run: start the cursor at "now" so we don't replay old chat history.
   if (!state.lastMessageDate || state.lastMessageDate <= 0) {
@@ -95,11 +100,10 @@ async function main() {
     state.lastTriggeredAt = new Date().toISOString();
     saveState(state);
     if (activate) {
-      scheduler.setTurn(color); // restart schedule + throw one orb now
+      // setTurn throws one orb now and (via the scheduler's onReminder hook) posts
+      // the AI reply right after it. Restarts the reminder schedule too.
+      scheduler.setTurn(color);
       log(`Turn changed to ${color} ${config.players[color]?.emoji}.`);
-      // A live turn change also asks the model a question and posts the reply.
-      // Fire-and-forget: it owns its errors so it can't stall the poll loop.
-      fireAiCompletion(config, color);
     }
   }
 
