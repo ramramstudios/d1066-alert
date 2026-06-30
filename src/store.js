@@ -152,11 +152,28 @@ export function loadConfig() {
     triggers[color] = (env[envKey] || `${color} up`).trim().toLowerCase();
   }
 
+  // AI completions (OPTIONAL). When an OPENAI_API_KEY is present (and AI_ENABLED
+  // isn't turned off), a turn change ALSO asks the model a question and posts its
+  // reply to the group. Leave OPENAI_API_KEY blank to disable entirely. The model
+  // default is resolved in ai.js (DEFAULT_MODEL), so we keep the raw value here.
+  const aiApiKey = (env.OPENAI_API_KEY || '').trim();
+  const aiEnabledRaw = (env.AI_ENABLED || '').trim().toLowerCase();
+  const aiEnabled = aiEnabledRaw === ''
+    ? Boolean(aiApiKey) // default: on whenever a key is set
+    : ['1', 'true', 'yes', 'on'].includes(aiEnabledRaw);
+  const ai = {
+    enabled: aiEnabled,
+    apiKey: aiApiKey,
+    model: (env.OPENAI_MODEL || '').trim(), // '' → ai.js falls back to DEFAULT_MODEL
+    prompt: (env.AI_PROMPT || '').trim() || '1+2=?',
+  };
+
   return {
     groupChatName,
     players,
     outsidePlayerColor, // null when everyone is in the group chat
     triggers,
+    ai,
     reminderIntervalMinutes: Number(env.REMINDER_INTERVAL_MINUTES) || 60,
     pollIntervalMinutes: Number(env.POLL_INTERVAL_MINUTES) || 5,
   };

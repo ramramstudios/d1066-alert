@@ -8,7 +8,8 @@
   "scripts": {
     "start": "node src/index.js",
     "poll": "node src/index.js --poll-once",
-    "send-test": "node src/index.js --send-test"
+    "send-test": "node src/index.js --send-test",
+    "ai-test": "node src/index.js --ai-test"
   },
   "engines": {
     "node": ">=18"

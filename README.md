@@ -24,6 +24,7 @@ silver up → ⚪️ reminder sent   (optional: also 1:1 to the outside player)
 | `src/watcher.js` | Polls `~/Library/Messages/chat.db` (read-only) at a configurable interval for new messages in the group chat and detects trigger words. |
 | `src/scheduler.js` | Runs [`node-cron`](https://www.npmjs.com/package/node-cron) reminder jobs at a configurable interval for the active color. |
 | `src/sender.js` | Sends iMessages through the Messages app via AppleScript (`osascript`). |
+| `src/ai.js` | *(Optional)* OpenAI-style LLM completions. On a turn change it asks the model a question and posts the reply to the group. Off unless `OPENAI_API_KEY` is set. |
 | `src/index.js` | Loads state, resumes the current turn, wires the poller + scheduler together. |
 | `state.json` | Remembers the current turn between restarts (and where it left off reading). |
 | `.env` | Your settings (group name; optional outside player + phone). **Not committed.** |
@@ -31,6 +32,46 @@ silver up → ⚪️ reminder sent   (optional: also 1:1 to the outside player)
 When a trigger is detected, the bot updates `state.json`, cancels the old reminder
 job, and starts a new one for the new color. On login/restart it reads `state.json`
 and resumes wherever the game was.
+
+If AI replies are enabled (see below), the same live trigger that changes the turn
+also fires one LLM completion and posts the model's answer to the group chat.
+
+---
+
+## AI replies (optional)
+
+`src/ai.js` adds OpenAI-style completions, modeled on the same mechanism as a
+sibling project (`tarot-chat`): a per-event **context** is assembled from a matrix
+of conditions (which color is up, whether they're the outside/DM player, the
+configured question), flattened into an `instructions` (system) string and an
+`input` (user) string by conditional block-assembly, POSTed to the OpenAI
+**Responses API** (`/v1/responses`), and the reply text is extracted and sent to
+the group with the existing sender.
+
+It is **off by default** — the bot works exactly as before unless you opt in.
+
+### Enable it
+
+Add to `.env` (see `.env.example`):
+
+```bash
+OPENAI_API_KEY=sk-...        # blank = AI replies off (everything else still works)
+OPENAI_MODEL=gpt-5-mini      # optional; defaults to gpt-5-mini
+AI_PROMPT=1+2=?              # the question asked on each turn change (default: a smoke test)
+AI_ENABLED=true              # optional; defaults to true whenever a key is set
+```
+
+### Verify the path end-to-end
+
+```bash
+npm run ai-test     # node src/index.js --ai-test
+```
+
+This asks the model the configured `AI_PROMPT` (default `1+2=?`) and posts the
+reply to the group — confirming the trigger → OpenAI → iMessage path without
+waiting for a real turn change. With the default prompt the group should receive
+`3`. The AI call is fire-and-forget and owns its errors, so a missing key, network
+hiccup, or API error is logged but never stalls polling or reminders.
 
 ---
 
