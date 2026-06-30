@@ -3,6 +3,10 @@
 // One job runs at a time. Changing turns stops the old job and starts a fresh one
 // for the new color. Each tick sends the active player's emoji to the group chat,
 // and — when it's the outside player's turn — a personalized 1:1 to their Apple ID.
+//
+// An optional `onReminder(color, phase)` hook runs right after the emoji is sent
+// (resume, every reminder tick, and live turn changes alike) — index.js wires the
+// AI reply through it so the model's line always follows the emoji.
 import cron from 'node-cron';
 import { log, logError } from './store.js';
 import { sendToGroup, sendToHandle } from './sender.js';
@@ -25,12 +29,12 @@ export function cronExpressionFor(intervalMinutes) {
   return '0 * * * *';
 }
 
-export function createScheduler(config) {
+export function createScheduler(config, onReminder = null) {
   let task = null;
   let activeColor = null;
 
-  /** Send one round of reminders for the given color. */
-  async function fireReminder(color) {
+  /** Send one round of reminders for the given color. `phase` is passed to the AI hook. */
+  async function fireReminder(color, phase = 'reminder') {
     const player = config.players[color];
     if (!player) {
       logError(`No player config for color "${color}"; skipping reminder.`);
@@ -52,6 +56,16 @@ export function createScheduler(config) {
         /* sender already logged */
       }
     }
+
+    // Post the AI reply right after the emoji. The hook owns its own errors, but we
+    // guard anyway so a bad hook can never break the reminder/turn machinery.
+    if (onReminder) {
+      try {
+        await onReminder(color, phase);
+      } catch (err) {
+        logError(`Reminder AI hook failed (emoji unaffected): ${err.message}`);
+      }
+    }
   }
 
   return {
@@ -65,7 +79,7 @@ export function createScheduler(config) {
       activeColor = color;
       const expr = cronExpressionFor(config.reminderIntervalMinutes);
       task = cron.schedule(expr, () => {
-        fireReminder(color).catch((err) => logError(`Reminder tick failed: ${err.message}`));
+        fireReminder(color, 'reminder').catch((err) => logError(`Reminder tick failed: ${err.message}`));
       });
       log(`Reminders started for ${color} (${config.players[color]?.emoji}) on schedule "${expr}".`);
     },
@@ -73,7 +87,7 @@ export function createScheduler(config) {
     /** Make `color` the active turn: (re)start its schedule AND send one reminder immediately. */
     setTurn(color) {
       this.start(color);
-      return fireReminder(color).catch((err) => logError(`Immediate reminder failed: ${err.message}`));
+      return fireReminder(color, 'turn-change').catch((err) => logError(`Immediate reminder failed: ${err.message}`));
     },
 
     /** Stop the current reminder job, if any. */

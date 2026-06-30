@@ -9,6 +9,9 @@ const __dirname = path.dirname(__filename);
 export const ROOT = path.resolve(__dirname, '..');
 export const ENV_PATH = path.join(ROOT, '.env');
 export const STATE_PATH = path.join(ROOT, 'state.json');
+// RAG context for AI replies — DJT post corpus used as a VOICE reference. Default is
+// the plain-text feed (one post per line); the loader also accepts .json/.jsonl.
+export const RAG_PATH = path.join(ROOT, 'trumpbot', 'trump.txt');
 
 // Turn order for Dragons of 1066. Also the set of valid colors / trigger keys.
 export const TURN_ORDER = ['red', 'gold', 'blue', 'silver'];
@@ -152,11 +155,37 @@ export function loadConfig() {
     triggers[color] = (env[envKey] || `${color} up`).trim().toLowerCase();
   }
 
+  // AI completions (OPTIONAL). When an OPENAI_API_KEY is present (and AI_ENABLED
+  // isn't turned off), a turn change ALSO asks the model a question and posts its
+  // reply to the group. Leave OPENAI_API_KEY blank to disable entirely. The model
+  // default is resolved in ai.js (DEFAULT_MODEL), so we keep the raw value here.
+  const aiApiKey = (env.OPENAI_API_KEY || '').trim();
+  const aiEnabledRaw = (env.AI_ENABLED || '').trim().toLowerCase();
+  const aiEnabled = aiEnabledRaw === ''
+    ? Boolean(aiApiKey) // default: on whenever a key is set
+    : ['1', 'true', 'yes', 'on'].includes(aiEnabledRaw);
+  const ai = {
+    enabled: aiEnabled,
+    apiKey: aiApiKey,
+    model: (env.OPENAI_MODEL || '').trim(), // '' → ai.js falls back to DEFAULT_MODEL
+    // Prompt template sent on a turn change. `{team}` is filled with the active color's
+    // display name (the per-turn "seed"); `{color}` with the raw color.
+    prompt: (env.AI_PROMPT || '').trim() || "roast or boast {team}, it's up to you DJT",
+    // Prompt template used on the recurring reminder ticks instead of `prompt` — a nag
+    // about the player who still hasn't moved. Same `{team}`/`{color}` placeholders.
+    reminderPrompt: (env.AI_REMINDER_PROMPT || '').trim() ||
+      "we're STILL waiting on the low energy, SAD, WEAK {team} to move — we've NEVER seen anyone so lazy!",
+    // RAG voice reference (DJT post corpus). Override with AI_CONTEXT_FILE
+    // (.txt one-post-per-line, or .json/.jsonl with a content/visible_text field).
+    contextFile: (env.AI_CONTEXT_FILE || '').trim() || RAG_PATH,
+  };
+
   return {
     groupChatName,
     players,
     outsidePlayerColor, // null when everyone is in the group chat
     triggers,
+    ai,
     reminderIntervalMinutes: Number(env.REMINDER_INTERVAL_MINUTES) || 60,
     pollIntervalMinutes: Number(env.POLL_INTERVAL_MINUTES) || 5,
   };
