@@ -47,12 +47,12 @@ async function fireAiCompletion(config, color, phase = 'turn-change') {
     log(`Model (${model}) replied: ${text}`);
     await sendToGroup(config.groupChatName, text);
 
-    // The outside player isn't in the group chat, so mirror the post to them 1:1 —
-    // on every fire, not just their own turn — so all players see the same message.
-    const outsideColor = config.outsidePlayerColor;
-    const outsideHandle = outsideColor && config.players[outsideColor]?.appleId;
-    if (outsideHandle) {
-      await sendToHandle(outsideHandle, text);
+    // The outside player isn't in the group chat and must stay unaware of other teams'
+    // turns — so mirror the post to them 1:1 ONLY on their own turn, matching the emoji
+    // ping in the scheduler.
+    if (color && color === config.outsidePlayerColor) {
+      const outsideHandle = config.players[color]?.appleId;
+      if (outsideHandle) await sendToHandle(outsideHandle, text);
     }
   } catch (err) {
     logError(`AI completion failed (turn/reminders unaffected): ${err.message}`);
