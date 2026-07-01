@@ -22,7 +22,7 @@
 import fs from 'node:fs';
 import { RAG_PATH, logError } from './store.js';
 
-const DEFAULT_MODEL = 'gpt-5-mini';
+const DEFAULT_MODEL = 'gpt-4o-mini';
 const OPENAI_RESPONSES_URL = 'https://api.openai.com/v1/responses';
 
 // How many feed excerpts to fold into a single request as a voice anchor. Keeping
@@ -233,13 +233,18 @@ export async function requestCompletion(context, config) {
   const instructions = buildInstructions(context);
   const input = buildInput(context);
 
+  // Only include `temperature` when configured — the GPT-5 family 400s on it, so an
+  // unset temperature keeps those models working while raising variety on the rest.
+  const body = { model, instructions, input };
+  if (Number.isFinite(ai.temperature)) body.temperature = ai.temperature;
+
   const response = await fetch(OPENAI_RESPONSES_URL, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${ai.apiKey}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ model, instructions, input }),
+    body: JSON.stringify(body),
   });
 
   const data = await response.json().catch(() => ({}));

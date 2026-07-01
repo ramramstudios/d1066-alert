@@ -164,10 +164,16 @@ export function loadConfig() {
   const aiEnabled = aiEnabledRaw === ''
     ? Boolean(aiApiKey) // default: on whenever a key is set
     : ['1', 'true', 'yes', 'on'].includes(aiEnabledRaw);
+  // Sampling temperature (OPTIONAL). Higher = more varied wording. Only sent to the
+  // API when set to a finite number — and note the GPT-5 family rejects it outright,
+  // so this only helps on temperature-capable models (e.g. gpt-4o-mini, gpt-4.1-mini).
+  const aiTemperatureRaw = (env.AI_TEMPERATURE || '').trim();
+  const aiTemperature = aiTemperatureRaw === '' ? undefined : Number(aiTemperatureRaw);
   const ai = {
     enabled: aiEnabled,
     apiKey: aiApiKey,
     model: (env.OPENAI_MODEL || '').trim(), // '' → ai.js falls back to DEFAULT_MODEL
+    temperature: Number.isFinite(aiTemperature) ? aiTemperature : undefined,
     // Prompt template sent on a turn change. `{team}` is filled with the active color's
     // display name (the per-turn "seed"); `{color}` with the raw color.
     prompt: (env.AI_PROMPT || '').trim() || "roast or boast {team}, it's up to you DJT",
