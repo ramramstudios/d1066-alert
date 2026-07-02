@@ -5,7 +5,9 @@ group chat for turn-change trigger words and sends **recurring emoji reminders**
 group — plus, optionally, a personal nudge to a player who isn't in the group chat.
 
 Everything runs on your Mac via the Messages app and the local Messages database.
-No third-party APIs, no servers, no cloud. Messages send from **your own Apple ID**.
+By default there are no third-party APIs, no servers, no cloud — messages send from
+**your own Apple ID**. (One *optional*, off-by-default feature — [AI replies](#ai-replies-optional)
+— does call the OpenAI API when you enable it.)
 
 Detect turn changes and fire reminders on a schedule you set:
 ```
@@ -24,42 +26,61 @@ silver up → ⚪️ reminder sent   (optional: also 1:1 to the outside player)
 | `src/watcher.js` | Polls `~/Library/Messages/chat.db` (read-only) at a configurable interval for new messages in the group chat and detects trigger words. |
 | `src/scheduler.js` | Runs [`node-cron`](https://www.npmjs.com/package/node-cron) reminder jobs at a configurable interval for the active color. |
 | `src/sender.js` | Sends iMessages through the Messages app via AppleScript (`osascript`). |
-| `src/ai.js` | *(Optional)* OpenAI-style LLM completions. On a turn change it asks the model a question and posts the reply to the group. Off unless `OPENAI_API_KEY` is set. |
+| `src/ai.js` | *(Optional)* OpenAI-style LLM completions in a Donald J. Trump / Truth Social persona. On each emoji fire it asks the model for a line that roasts or boasts the active team, using a bundled post corpus as a voice reference, and posts it to the group. Off unless `OPENAI_API_KEY` is set. |
 | `src/index.js` | Loads state, resumes the current turn, wires the poller + scheduler together. |
+| `trumpbot/` | Bundled DJT post corpus (`trump.txt` / `trump_truth_social.json`) sampled as a voice reference for AI replies. Only read when AI is enabled. |
 | `state.json` | Remembers the current turn between restarts (and where it left off reading). |
-| `.env` | Your settings (group name; optional outside player + phone). **Not committed.** |
+| `.env` | Your settings (group name; optional outside player + phone; optional AI). **Not committed.** |
 
 When a trigger is detected, the bot updates `state.json`, cancels the old reminder
 job, and starts a new one for the new color. On login/restart it reads `state.json`
 and resumes wherever the game was.
 
-If AI replies are enabled (see below), the same live trigger that changes the turn
-also fires one LLM completion and posts the model's answer to the group chat.
+If AI replies are enabled (see below), every emoji the bot sends is followed by one
+LLM completion posted to the group — on live turn changes, on resume, and on each
+recurring reminder tick. On the outside player's turn the same line is also mirrored
+to them 1:1, so they never learn about other teams' turns from the AI.
 
 ---
 
 ## AI replies (optional)
 
-`src/ai.js` adds OpenAI-style completions, modeled on the same mechanism as a
-sibling project (`tarot-chat`): a per-event **context** is assembled from a matrix
-of conditions (which color is up, whether they're the outside/DM player, the
-configured question), flattened into an `instructions` (system) string and an
-`input` (user) string by conditional block-assembly, POSTed to the OpenAI
-**Responses API** (`/v1/responses`), and the reply text is extracted and sent to
-the group with the existing sender.
+`src/ai.js` adds OpenAI-style completions in a **Donald J. Trump / Truth Social
+persona**. Whenever the bot sends an emoji (turn change, resume, or reminder tick),
+it also asks the model for one short in-character post that **roasts or boasts** the
+active team — the model picks which — and sends that to the group. On the outside
+player's turn the line is mirrored to them 1:1 as well.
 
-It is **off by default** — the bot works exactly as before unless you opt in.
+Mechanically it's modeled on a sibling project (`tarot-chat`): a per-event
+**context** is assembled from a matrix of conditions (which color is up, whether it's
+a turn change or a recurring reminder, whether they're the outside/DM player), plus a
+random sample of a bundled **voice corpus** (`trumpbot/`) used only as a style
+reference. That context is flattened into an `instructions` (system) string and an
+`input` (user) string by conditional block-assembly, POSTed to the OpenAI
+**Responses API** (`/v1/responses`), and the reply text is extracted and sent with
+the existing sender.
+
+It is **off by default** — the bot works exactly as before unless you opt in. When
+enabled, note that message context (team names, the corpus sample) is sent to OpenAI;
+see [Privacy & safety](#privacy--safety).
 
 ### Enable it
 
-Add to `.env` (see `.env.example`):
+Add to `.env` (see `.env.example` for the full commentary):
 
 ```bash
 OPENAI_API_KEY=sk-...        # blank = AI replies off (everything else still works)
-OPENAI_MODEL=gpt-5-mini      # optional; defaults to gpt-5-mini
-AI_PROMPT=1+2=?              # the question asked on each turn change (default: a smoke test)
+OPENAI_MODEL=gpt-4o-mini     # optional; defaults to gpt-4o-mini
+AI_TEMPERATURE=1.2           # optional; higher = more varied. NOT supported by the GPT-5 family
+AI_PROMPT=roast or boast {team}, it's up to you DJT   # turn-change prompt; {team}/{color} substituted
+AI_REMINDER_PROMPT=we're STILL waiting on {team} to move!   # used on recurring reminder ticks instead
+AI_CONTEXT_FILE=             # optional voice corpus override; blank = bundled trumpbot/trump.txt
 AI_ENABLED=true              # optional; defaults to true whenever a key is set
 ```
+
+> **Model / temperature note:** `AI_TEMPERATURE` is only sent to the API when set,
+> because the GPT-5 family (`gpt-5`, `gpt-5-mini`, …) rejects a temperature parameter.
+> Use a temperature-capable model (like the default `gpt-4o-mini`) if you want to tune it.
 
 ### Verify the path end-to-end
 
@@ -67,11 +88,11 @@ AI_ENABLED=true              # optional; defaults to true whenever a key is set
 npm run ai-test     # node src/index.js --ai-test
 ```
 
-This asks the model the configured `AI_PROMPT` (default `1+2=?`) and posts the
-reply to the group — confirming the trigger → OpenAI → iMessage path without
-waiting for a real turn change. With the default prompt the group should receive
-`3`. The AI call is fire-and-forget and owns its errors, so a missing key, network
-hiccup, or API error is logged but never stalls polling or reminders.
+This runs one completion for the outside player's color (or no color if none is set)
+and posts the reply to the group — confirming the trigger → OpenAI → iMessage path
+without waiting for a real turn change. The AI call is fire-and-forget and owns its
+errors, so a missing key, network hiccup, or API error is logged but never stalls
+polling or reminders.
 
 ---
 
@@ -314,9 +335,14 @@ sent *after* it starts are considered.
 
 ## Privacy & safety
 
-- **Everything is local.** The bot runs entirely on your Mac and reads from your local Messages
-  database (`~/Library/Messages/chat.db`). No data leaves your machine; no external service sees
-  your messages or conversations.
+- **Local by default.** With AI replies off (the default), the bot runs entirely on your Mac and
+  reads from your local Messages database (`~/Library/Messages/chat.db`). No data leaves your
+  machine; no external service sees your messages or conversations.
+- **AI replies are the one exception.** If you enable [AI replies](#ai-replies-optional), the bot
+  sends the active team name, the event context, and a sample of the bundled voice corpus to the
+  OpenAI API on each fire — subject to OpenAI's data policies. It does **not** send your group
+  chat's message history; it never reads message *content* to build the prompt, only the detected
+  turn color. Leave `OPENAI_API_KEY` blank to keep everything fully local.
 - **You own the data access.** The bot reads the same Messages database *you* (the Mac's owner) can
   already read directly — it's your own Mac, your own account. Running this automation isn't
   granting anyone new access; it's just automating something you could do manually yourself.
