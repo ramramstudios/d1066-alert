@@ -184,6 +184,10 @@ export function loadConfig() {
     // RAG voice reference (DJT post corpus). Override with AI_CONTEXT_FILE
     // (.txt one-post-per-line, or .json/.jsonl with a content/visible_text field).
     contextFile: (env.AI_CONTEXT_FILE || '').trim() || RAG_PATH,
+    // When true, before each AI post the bot reads everything OTHER players have said
+    // in the group (and the outside player's 1:1) since its last post, and folds that
+    // chatter into the prompt as extra context. Default off.
+    captureChat: ['1', 'true', 'yes', 'on'].includes((env.AI_CAPTURE_CHAT || '').trim().toLowerCase()),
   };
 
   return {

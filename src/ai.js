@@ -33,6 +33,11 @@ const RAG_SAMPLE_SIZE = 3;
 // Cap each sampled post's length so a stray multi-paragraph post can't bloat a request.
 const RAG_EXCERPT_MAX_CHARS = 600;
 
+// Bounds for the optional chat-capture context (AI_CAPTURE_CHAT). Keep only the most
+// recent messages, each truncated, so a burst of chatter can't blow up the request.
+const CAPTURE_MAX_MESSAGES = 40;
+const CAPTURE_EXCERPT_MAX_CHARS = 300;
+
 // Per-turn flavor. Each color may contribute a one-line "focus" the model is told
 // about; absent entries are simply skipped. This is the d1066 analogue of
 // tarot-chat's per-placement / per-mode context blocks — the conditional pieces
@@ -131,7 +136,7 @@ function titleCase(s) {
  * team color is the seed: it selects the team name folded into the prompt template
  * and rides along with a random sample of the RAG voice corpus. `color` may be null.
  */
-export function buildTurnContext(color, config, phase = 'turn-change') {
+export function buildTurnContext(color, config, phase = 'turn-change', recentMessages = []) {
   const player = (color && config?.players?.[color]) || {};
   const team = player.name || titleCase(color) || 'the table';
   // Recurring reminders nag the slow player; turn changes (and tests) roast-or-boast.
@@ -142,6 +147,12 @@ export function buildTurnContext(color, config, phase = 'turn-change') {
   const question = template
     .replace(/\{team\}/gi, team)
     .replace(/\{color\}/gi, color || '');
+  // Recent chatter captured since the last post (AI_CAPTURE_CHAT), trimmed and capped.
+  const captured = (Array.isArray(recentMessages) ? recentMessages : [])
+    .map((t) => String(t).trim())
+    .filter(Boolean)
+    .slice(-CAPTURE_MAX_MESSAGES)
+    .map((t) => t.slice(0, CAPTURE_EXCERPT_MAX_CHARS));
   return {
     phase,
     turn: color || null,
@@ -149,6 +160,7 @@ export function buildTurnContext(color, config, phase = 'turn-change') {
     emoji: player.emoji || '',
     isOutsidePlayer: Boolean(color) && color === config?.outsidePlayerColor,
     question,
+    recentMessages: captured,
     rag: sampleRag(loadRagContext(config?.ai?.contextFile)),
   };
 }
@@ -168,6 +180,9 @@ export function buildInstructions(context) {
     'Output ONE short post (1–2 punchy sentences), plain text only: no markdown, no preamble, no quotation marks around the whole thing.',
     'Stay fully in character. Never break character or add meta-commentary — no disclaimers, no notes that this is role-play, fiction, satire, parody, or AI-generated, no content warnings, no "as an AI" or "as a fictional" hedging. Reply with the post itself and nothing else.',
     context.turn ? `It is currently the ${context.team} team's turn.` : '',
+    context.recentMessages?.length
+      ? `The players have been chatting since your last post — you MAY react to what they said, but keep the ${context.team} team the subject and stay fully in character.`
+      : '',
     styleRefs
       ? `Below are real posts of yours, provided ONLY so you match the cadence and tone. Do NOT reuse their subjects or current-events references — the only subject is the ${context.team} team:\n${styleRefs}`
       : '',
@@ -188,6 +203,9 @@ export function buildInput(context) {
     context.turn ? `Active team: ${context.team} ${context.emoji}`.trim() : '',
     focus || '',
     context.isOutsidePlayer ? 'This player is playing from outside the group chat.' : '',
+    context.recentMessages?.length
+      ? `Recent chat since your last post:\n${context.recentMessages.map((m) => `- ${m}`).join('\n')}`
+      : '',
     '',
     context.question,
   ]

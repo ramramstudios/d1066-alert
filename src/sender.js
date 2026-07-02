@@ -7,7 +7,38 @@
 // We use execFile (not exec) so user-controlled strings never touch a shell, and
 // we only have to escape for AppleScript's own string syntax.
 import { execFile } from 'node:child_process';
-import { log, logError } from './store.js';
+import { log, logError, macTimeNowNs } from './store.js';
+
+// ── Bot-send registry ─────────────────────────────────────────────────────────
+// The chat-capture feature reads messages back out of chat.db, where the bot's own
+// automated sends and the owner's hand-typed messages BOTH show up as is_from_me=1 —
+// indistinguishable by the database alone. So we record every message the bot sends
+// (only the bot sends through this module) and let callers subtract those from what
+// they capture, matching on identical text within a send-time window.
+const botSends = [];
+const BOT_SEND_TTL_NS = 6 * 60 * 60 * 1e9; // forget our sends after 6h
+const BOT_SEND_MATCH_WINDOW_NS = 5 * 60 * 1e9; // ±5 min tolerance between send + chat.db date
+
+/** Record one automated send so the capture path can later exclude it. */
+function recordBotSend(text) {
+  const trimmed = (text || '').trim();
+  if (trimmed) botSends.push({ text: trimmed, at: macTimeNowNs() });
+}
+
+/**
+ * True if the bot itself sent this exact text at about this time — i.e. it's an
+ * automated emoji/AI post echoing back from chat.db, not a real person's message.
+ * Owner-typed messages (different text, or the same text at a different time) pass through.
+ */
+export function wasSentByBot(text, dateNs) {
+  const trimmed = (text || '').trim();
+  if (!trimmed) return false;
+  const cutoff = macTimeNowNs() - BOT_SEND_TTL_NS;
+  while (botSends.length && botSends[0].at < cutoff) botSends.shift(); // prune old entries
+  return botSends.some(
+    (s) => s.text === trimmed && Math.abs(s.at - dateNs) <= BOT_SEND_MATCH_WINDOW_NS,
+  );
+}
 
 /** Escape a JS string so it's safe inside an AppleScript "double-quoted" literal. */
 function escapeForAppleScript(str) {
@@ -49,6 +80,7 @@ end tell`;
 
   try {
     await runAppleScript(script);
+    recordBotSend(message);
     log(`Sent to group "${groupChatName}": ${message}`);
   } catch (err) {
     logError(`Failed to send to group "${groupChatName}": ${err.stderr || err.message}`);
@@ -72,6 +104,7 @@ end tell`;
 
   try {
     await runAppleScript(script);
+    recordBotSend(message);
     log(`Sent to ${appleId}: ${message}`);
   } catch (err) {
     logError(`Failed to send to ${appleId}: ${err.stderr || err.message}`);

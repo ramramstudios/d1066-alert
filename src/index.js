@@ -10,12 +10,13 @@ import {
   loadConfig,
   loadState,
   saveState,
+  macTimeNowNs,
   log,
   logError,
 } from './store.js';
-import { pollForTriggers, initialCursor, checkDbAccess } from './watcher.js';
+import { pollForTriggers, initialCursor, checkDbAccess, collectRecentMessages } from './watcher.js';
 import { createScheduler } from './scheduler.js';
-import { sendToGroup, sendToHandle } from './sender.js';
+import { sendToGroup, sendToHandle, wasSentByBot } from './sender.js';
 import { isAiConfigured, buildTurnContext, requestCompletion } from './ai.js';
 
 async function sendTest(config) {
@@ -35,12 +36,43 @@ async function sendTest(config) {
   }
 }
 
+// Cursor for the optional chat-capture feature (AI_CAPTURE_CHAT), in Mac-absolute ns.
+// Starts at process start so the first post never replays old history; each AI fire
+// reads everything said since this mark, then advances it past the newest message seen.
+let aiCaptureSince = macTimeNowNs();
+
 // Ask the model one question and post its reply to the group. Used by the live
 // turn trigger and by --ai-test. `color` may be null (no active turn). Self-contained
 // error handling so a flaky API call never takes down polling or reminders.
 async function fireAiCompletion(config, color, phase = 'turn-change') {
   if (!isAiConfigured(config)) return;
-  const context = buildTurnContext(color, config, phase);
+
+  // Optionally gather everything said in the chat since the last post, for context
+  // (the bot's own automated sends are subtracted below; owner-typed messages stay).
+  let recentMessages = [];
+  if (config.ai.captureChat) {
+    try {
+      const outsideHandle = config.outsidePlayerColor
+        ? config.players[config.outsidePlayerColor]?.appleId
+        : null;
+      const { messages, lastMessageDate } = collectRecentMessages(
+        config.groupChatName,
+        aiCaptureSince,
+        outsideHandle,
+      );
+      // Keep the owner's own messages, but drop the bot's automated emoji/AI sends —
+      // both are is_from_me=1 in chat.db, so we subtract them by matching what we sent.
+      recentMessages = messages
+        .filter((m) => !wasSentByBot(m.text, m.date))
+        .map((m) => m.text);
+      aiCaptureSince = Math.max(aiCaptureSince, lastMessageDate);
+      if (recentMessages.length) log(`Captured ${recentMessages.length} recent message(s) as AI context.`);
+    } catch (err) {
+      logError(`Chat capture failed (AI reply continues without it): ${err.message}`);
+    }
+  }
+
+  const context = buildTurnContext(color, config, phase, recentMessages);
   try {
     log(`Asking the model (${config.ai.model || 'default'}): "${context.question}"`);
     const { text, model } = await requestCompletion(context, config);

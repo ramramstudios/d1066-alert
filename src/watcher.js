@@ -154,6 +154,78 @@ export function pollForTriggers(groupChatName, sinceDate, triggers, outsidePlaye
 }
 
 /**
+ * Collect the readable text of every message sent since `sinceDate` — used by the
+ * optional AI chat-capture feature to give the model recent context.
+ *
+ * Captures ALL messages, including the owner's own (is_from_me=1), and returns each
+ * one's date so the caller can subtract the bot's own automated sends (which are also
+ * is_from_me=1 and indistinguishable here) via sender.wasSentByBot. Reads the group
+ * chat and, if configured, the outside player's 1:1 thread, like pollForTriggers.
+ *
+ * @param {string} groupChatName The display name of the iMessage group.
+ * @param {number} sinceDate Mac-absolute nanoseconds; only collect messages after this.
+ * @param {string|null} outsidePlayerHandle Phone/email of the outside player's 1:1 thread (optional).
+ * Returns { messages, lastMessageDate }:
+ *   messages         — array of { text, date } objects, oldest first.
+ *   lastMessageDate  — the highest message.date seen, to advance the capture cursor.
+ */
+export function collectRecentMessages(groupChatName, sinceDate, outsidePlayerHandle = null) {
+  let db;
+  try {
+    db = new Database(CHAT_DB_PATH, { readonly: true, fileMustExist: true });
+    db.pragma('busy_timeout = 4000');
+
+    const groupRows = db
+      .prepare(
+        `SELECT m.text AS text, m.attributedBody AS attributedBody, m.date AS date
+           FROM message m
+           JOIN chat_message_join cmj ON cmj.message_id = m.ROWID
+           JOIN chat c                ON c.ROWID        = cmj.chat_id
+          WHERE c.display_name = ?
+            AND m.date > ?
+          ORDER BY m.date ASC`,
+      )
+      .all(groupChatName, sinceDate);
+
+    const dmRows = outsidePlayerHandle
+      ? db
+          .prepare(
+            `SELECT m.text AS text, m.attributedBody AS attributedBody, m.date AS date
+               FROM message m
+               JOIN chat_message_join cmj ON cmj.message_id = m.ROWID
+               JOIN chat c                ON c.ROWID        = cmj.chat_id
+               JOIN chat_handle_join chj  ON chj.chat_id    = c.ROWID
+               JOIN handle h              ON h.ROWID        = chj.handle_id
+              WHERE h.id   = ?
+                AND m.date > ?
+              ORDER BY m.date ASC`,
+          )
+          .all(outsidePlayerHandle, sinceDate)
+      : [];
+
+    const allRows = [...groupRows, ...dmRows].sort((a, b) => a.date - b.date);
+
+    let lastMessageDate = sinceDate;
+    const messages = [];
+    for (const row of allRows) {
+      if (row.date > lastMessageDate) lastMessageDate = row.date;
+      const text = rowText(row);
+      if (text && text.trim()) messages.push({ text: text.trim(), date: row.date });
+    }
+
+    return { messages, lastMessageDate };
+  } finally {
+    if (db) {
+      try {
+        db.close();
+      } catch {
+        /* ignore close errors */
+      }
+    }
+  }
+}
+
+/**
  * Establish the starting cursor so we never replay old history on first run.
  * Returns a Mac-absolute-ns timestamp for "now".
  */

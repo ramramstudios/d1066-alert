@@ -75,8 +75,27 @@ AI_TEMPERATURE=1.2           # optional; higher = more varied. NOT supported by 
 AI_PROMPT=roast or boast {team}, it's up to you DJT   # turn-change prompt; {team}/{color} substituted
 AI_REMINDER_PROMPT=we're STILL waiting on {team} to move!   # used on recurring reminder ticks instead
 AI_CONTEXT_FILE=             # optional voice corpus override; blank = bundled trumpbot/trump.txt
+AI_CAPTURE_CHAT=false        # optional; true = feed recent chatter into the reply (see below)
 AI_ENABLED=true              # optional; defaults to true whenever a key is set
 ```
+
+### Reacting to recent chat (`AI_CAPTURE_CHAT`)
+
+By default the bot only listens for trigger words and ignores everything else in the
+chat. Set `AI_CAPTURE_CHAT=true` and, right before each AI post, it reads **everything
+said since its last post** — in the group chat and in the outside player's 1:1 — and
+folds that into the prompt. The reply still centers on the active team, but now reacts
+to the live conversation (up to the 40 most recent messages).
+
+- **Every real message is captured, including your own typed ones.** The one thing
+  subtracted out is the bot's **own automated sends** (its emoji pings and prior AI
+  posts) — otherwise it would echo itself. Because your hand-typed messages and the
+  bot's sends both look identical in the Messages database (`is_from_me`), the bot
+  keeps a record of exactly what it sent and removes those matches from the capture.
+- The capture window is "since the bot's previous post," so each turn change and each
+  reminder tick sees only what was said since the last one. On the very first post
+  after startup there's no history, so nothing is captured.
+- This reads more of your chat and sends it to OpenAI — see [Privacy & safety](#privacy--safety).
 
 > **Model / temperature note:** `AI_TEMPERATURE` is only sent to the API when set,
 > because the GPT-5 family (`gpt-5`, `gpt-5-mini`, …) rejects a temperature parameter.
@@ -340,9 +359,10 @@ sent *after* it starts are considered.
   machine; no external service sees your messages or conversations.
 - **AI replies are the one exception.** If you enable [AI replies](#ai-replies-optional), the bot
   sends the active team name, the event context, and a sample of the bundled voice corpus to the
-  OpenAI API on each fire — subject to OpenAI's data policies. It does **not** send your group
-  chat's message history; it never reads message *content* to build the prompt, only the detected
-  turn color. Leave `OPENAI_API_KEY` blank to keep everything fully local.
+  OpenAI API on each fire — subject to OpenAI's data policies. By default it does **not** send any
+  of your chat's message content, only the detected turn color. **If you additionally enable
+  `AI_CAPTURE_CHAT`**, it also sends the recent messages other players have posted since its last
+  reply. Leave `OPENAI_API_KEY` blank to keep everything fully local.
 - **You own the data access.** The bot reads the same Messages database *you* (the Mac's owner) can
   already read directly — it's your own Mac, your own account. Running this automation isn't
   granting anyone new access; it's just automating something you could do manually yourself.
